@@ -23,6 +23,7 @@
 @property (nonatomic, readwrite) CGFloat segmentWidth;
 @property (nonatomic, readwrite) NSArray *segmentWidthsArray;
 @property (nonatomic, strong) HMScrollView *scrollView;
+@property (nonatomic, strong) UIColor *lockedSegmentedTextColor;
 
 @end
 
@@ -148,6 +149,8 @@
     self.segmentWidthStyle = HMSegmentedControlSegmentWidthStyleFixed;
     self.userDraggable = YES;
     self.touchEnabled = YES;
+    self.lockedSegmentedAtIndexes = @[];
+    self.lockedSegmentedTextColor = [UIColor grayColor];
     self.type = HMSegmentedControlTypeText;
     
     self.shouldAnimateUserSelection = YES;
@@ -170,6 +173,14 @@
 
 - (void)setFrame:(CGRect)frame {
     [super setFrame:frame];
+    
+    if (self.type == HMSegmentedControlTypeText && self.sectionTitles) {
+        [self updateSegmentsRects];
+    } else if(self.type == HMSegmentedControlTypeImages && self.sectionImages) {
+        [self updateSegmentsRects];
+    } else if (self.type == HMSegmentedControlTypeTextImages && self.sectionImages && self.sectionTitles){
+		[self updateSegmentsRects];
+	}
     
     [self updateSegmentsRects];
 }
@@ -201,6 +212,13 @@
     self.selectionIndicatorBoxLayer.opacity = _selectionIndicatorBoxOpacity;
 }
 
+- (void)setLockedSegmentedTextColor:(UIColor *)color
+{
+    _lockedSegmentedTextColor = color;
+    
+    [self setNeedsLayout];
+}
+
 #pragma mark - Drawing
 
 - (void)drawRect:(CGRect)rect {
@@ -220,8 +238,8 @@
     if (self.type == HMSegmentedControlTypeText) {
         [self.sectionTitles enumerateObjectsUsingBlock:^(id titleString, NSUInteger idx, BOOL *stop) {
 
-            CGFloat stringWidth = 0;
-            CGFloat stringHeight = 0;
+            CGFloat stringWidth = roundf([titleString sizeWithFont:self.font].width);
+            CGFloat stringHeight = roundf([titleString sizeWithFont:self.font].height);
             if([titleString respondsToSelector:@selector(sizeWithAttributes:)]) {
                 stringWidth = [titleString sizeWithAttributes:@{NSFontAttributeName: self.font}].width;
                 stringHeight = [titleString sizeWithAttributes:@{NSFontAttributeName: self.font}].height;
@@ -251,6 +269,8 @@
                 rect = CGRectMake(xOffset, y, [[self.segmentWidthsArray objectAtIndex:idx] floatValue], stringHeight);
             }
             
+            
+            
             CATextLayer *titleLayer = [CATextLayer layer];
             titleLayer.frame = rect;
             titleLayer.font = (__bridge CFTypeRef)(self.font.fontName);
@@ -264,6 +284,8 @@
             } else {
                 titleLayer.foregroundColor = self.textColor.CGColor;
             }
+
+            [self changeTitleLayerColor:titleLayer atIndex:idx];
             
             titleLayer.contentsScale = [[UIScreen mainScreen] scale];
             [self.scrollView.layer addSublayer:titleLayer];
@@ -350,6 +372,8 @@
 				titleLayer.foregroundColor = self.textColor.CGColor;
             }
             
+            [self changeTitleLayerColor:titleLayer atIndex:idx];
+            
             [self.scrollView.layer addSublayer:imageLayer];
 			titleLayer.contentsScale = [[UIScreen mainScreen] scale];
             [self.scrollView.layer addSublayer:titleLayer];
@@ -375,6 +399,13 @@
                 }
             }
         }
+    }
+}
+
+- (void)changeTitleLayerColor:(CATextLayer*)titleLayer atIndex:(NSUInteger)idx
+{
+    if ([self.lockedSegmentedAtIndexes containsObject:@(idx)] && self.lockedStyle != HMSegmentedControlLockedStyleTextNone) {
+        titleLayer.foregroundColor = self.lockedSegmentedTextColor.CGColor;
     }
 }
 
@@ -505,66 +536,73 @@
         self.segmentWidth = self.frame.size.width / [self sectionCount];
     }
     
-    if (self.type == HMSegmentedControlTypeText && self.segmentWidthStyle == HMSegmentedControlSegmentWidthStyleFixed) {
-        for (NSString *titleString in self.sectionTitles) {
+    if (self.isScrollEnabled) {
+        if (self.type == HMSegmentedControlTypeText && self.segmentWidthStyle == HMSegmentedControlSegmentWidthStyleFixed) {
+            for (NSString *titleString in self.sectionTitles) {
 #if  __IPHONE_OS_VERSION_MIN_REQUIRED >= 70000
-            CGFloat stringWidth = [titleString sizeWithAttributes:@{NSFontAttributeName: self.font}].width + self.segmentEdgeInset.left + self.segmentEdgeInset.right;
+                CGFloat stringWidth = [titleString sizeWithAttributes:@{NSFontAttributeName: self.font}].width + self.segmentEdgeInset.left + self.segmentEdgeInset.right;
 #else
-            CGFloat stringWidth = [titleString sizeWithFont:self.font].width + self.segmentEdgeInset.left + self.segmentEdgeInset.right;
+                CGFloat stringWidth = [titleString sizeWithFont:self.font].width + self.segmentEdgeInset.left + self.segmentEdgeInset.right;
 #endif
-            self.segmentWidth = MAX(stringWidth, self.segmentWidth);
-        }
-    } else if (self.type == HMSegmentedControlTypeText && self.segmentWidthStyle == HMSegmentedControlSegmentWidthStyleDynamic) {
-        NSMutableArray *mutableSegmentWidths = [NSMutableArray array];
-        
-        for (NSString *titleString in self.sectionTitles) {
-#if  __IPHONE_OS_VERSION_MIN_REQUIRED >= 70000
-            CGFloat stringWidth = [titleString sizeWithAttributes:@{NSFontAttributeName: self.font}].width + self.segmentEdgeInset.left + self.segmentEdgeInset.right;
-#else
-            CGFloat stringWidth = [titleString sizeWithFont:self.font].width + self.segmentEdgeInset.left + self.segmentEdgeInset.right;
-#endif
-            [mutableSegmentWidths addObject:[NSNumber numberWithFloat:stringWidth]];
-        }
-        self.segmentWidthsArray = [mutableSegmentWidths copy];
-    } else if (self.type == HMSegmentedControlTypeImages) {
-        for (UIImage *sectionImage in self.sectionImages) {
-            CGFloat imageWidth = sectionImage.size.width + self.segmentEdgeInset.left + self.segmentEdgeInset.right;
-            self.segmentWidth = MAX(imageWidth, self.segmentWidth);
-        }
-    } else if (self.type == HMSegmentedControlTypeTextImages && HMSegmentedControlSegmentWidthStyleFixed){
-        //lets just use the title.. we will assume it is wider then images...
-        for (NSString *titleString in self.sectionTitles) {
-#if  __IPHONE_OS_VERSION_MIN_REQUIRED >= 70000
-            CGFloat stringWidth = [titleString sizeWithAttributes:@{NSFontAttributeName: self.font}].width + self.segmentEdgeInset.left + self.segmentEdgeInset.right;
-#else
-            CGFloat stringWidth = [titleString sizeWithFont:self.font].width + self.segmentEdgeInset.left + self.segmentEdgeInset.right;
-#endif
-            self.segmentWidth = MAX(stringWidth, self.segmentWidth);
-        }
-    } else if (self.type == HMSegmentedControlTypeTextImages && HMSegmentedControlSegmentWidthStyleDynamic) {
-        NSMutableArray *mutableSegmentWidths = [NSMutableArray array];
-        
-        int i = 0;
-        for (NSString *titleString in self.sectionTitles) {
-#if  __IPHONE_OS_VERSION_MIN_REQUIRED >= 70000
-            CGFloat stringWidth = [titleString sizeWithAttributes:@{NSFontAttributeName: self.font}].width + self.segmentEdgeInset.right;
-#else
-            CGFloat stringWidth = [titleString sizeWithFont:self.font].width + self.segmentEdgeInset.right;
-#endif
-            UIImage *sectionImage = [self.sectionImages objectAtIndex:i];
-            CGFloat imageWidth = sectionImage.size.width + self.segmentEdgeInset.left;
+                self.segmentWidth = MAX(stringWidth, self.segmentWidth);
+            }
+        } else if (self.type == HMSegmentedControlTypeText && self.segmentWidthStyle == HMSegmentedControlSegmentWidthStyleDynamic) {
+            NSMutableArray *mutableSegmentWidths = [NSMutableArray array];
             
-            CGFloat combinedWidth = imageWidth + segmentImageTextPadding + stringWidth;
+            for (NSString *titleString in self.sectionTitles) {
+#if  __IPHONE_OS_VERSION_MIN_REQUIRED >= 70000
+                CGFloat stringWidth = [titleString sizeWithAttributes:@{NSFontAttributeName: self.font}].width + self.segmentEdgeInset.left + self.segmentEdgeInset.right;
+#else
+                CGFloat stringWidth = [titleString sizeWithFont:self.font].width + self.segmentEdgeInset.left + self.segmentEdgeInset.right;
+#endif
+                [mutableSegmentWidths addObject:[NSNumber numberWithFloat:stringWidth]];
+            }
+            self.segmentWidthsArray = [mutableSegmentWidths copy];
+        } else if (self.type == HMSegmentedControlTypeImages) {
+            for (UIImage *sectionImage in self.sectionImages) {
+                CGFloat imageWidth = sectionImage.size.width + self.segmentEdgeInset.left + self.segmentEdgeInset.right;
+                self.segmentWidth = MAX(imageWidth, self.segmentWidth);
+            }
+        } else if (self.type == HMSegmentedControlTypeTextImages && HMSegmentedControlSegmentWidthStyleFixed){
+			//lets just use the title.. we will assume it is wider then images...
+            for (NSString *titleString in self.sectionTitles) {
+#if  __IPHONE_OS_VERSION_MIN_REQUIRED >= 70000
+                CGFloat stringWidth = [titleString sizeWithAttributes:@{NSFontAttributeName: self.font}].width + self.segmentEdgeInset.left + self.segmentEdgeInset.right;
+#else
+                CGFloat stringWidth = [titleString sizeWithFont:self.font].width + self.segmentEdgeInset.left + self.segmentEdgeInset.right;
+#endif
+                self.segmentWidth = MAX(stringWidth, self.segmentWidth);
+            }
+		} else if (self.type == HMSegmentedControlTypeTextImages && HMSegmentedControlSegmentWidthStyleDynamic) {
+            NSMutableArray *mutableSegmentWidths = [NSMutableArray array];
             
-            [mutableSegmentWidths addObject:[NSNumber numberWithFloat:combinedWidth]];
-            
-            i++;
+            int i = 0;
+            for (NSString *titleString in self.sectionTitles) {
+#if  __IPHONE_OS_VERSION_MIN_REQUIRED >= 70000
+                CGFloat stringWidth = [titleString sizeWithAttributes:@{NSFontAttributeName: self.font}].width + self.segmentEdgeInset.right;
+#else
+                CGFloat stringWidth = [titleString sizeWithFont:self.font].width + self.segmentEdgeInset.right;
+#endif
+                UIImage *sectionImage = [self.sectionImages objectAtIndex:i];
+                CGFloat imageWidth = sectionImage.size.width + self.segmentEdgeInset.left;
+                
+                CGFloat combinedWidth = imageWidth + segmentImageTextPadding + stringWidth;
+                
+                [mutableSegmentWidths addObject:[NSNumber numberWithFloat:combinedWidth]];
+                
+                i++;
+            }
+            self.segmentWidthsArray = [mutableSegmentWidths copy];
         }
-        self.segmentWidthsArray = [mutableSegmentWidths copy];
     }
-
-    self.scrollView.scrollEnabled = self.isUserDraggable;
-    self.scrollView.contentSize = CGSizeMake([self totalSegmentedControlWidth], self.frame.size.height);
+    
+    if ([self segmentedControlNeedsScrolling]) {
+        self.scrollView.scrollEnabled = self.isUserDraggable;
+        self.scrollView.contentSize = CGSizeMake([self totalSegmentedControlWidth], self.frame.size.height);
+    } else {
+		self.scrollView.scrollEnabled = NO;
+        self.scrollView.contentSize = self.frame.size;
+	}
 }
 
 - (NSUInteger)sectionCount {
@@ -622,13 +660,20 @@
         
         if (segment != self.selectedSegmentIndex && segment < sectionsCount) {
             // Check if we have to do anything with the touch event
-            if (self.isTouchEnabled)
+            if (self.isTouchEnabled && ![self.lockedSegmentedAtIndexes containsObject:@(segment)])
                 [self setSelectedSegmentIndex:segment animated:self.shouldAnimateUserSelection notify:YES];
         }
     }
 }
 
 #pragma mark - Scrolling
+
+- (BOOL)segmentedControlNeedsScrolling {
+    if ([self totalSegmentedControlWidth] > self.frame.size.width && self.isScrollEnabled) {
+        return YES;
+    }
+    return NO;
+}
 
 - (CGFloat)totalSegmentedControlWidth {
     if (self.type == HMSegmentedControlTypeText && self.segmentWidthStyle == HMSegmentedControlSegmentWidthStyleFixed) {
