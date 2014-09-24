@@ -25,7 +25,7 @@ typedef enum {
 typedef enum {
     HMSegmentedControlSelectionIndicatorLocationUp,
     HMSegmentedControlSelectionIndicatorLocationDown,
-	HMSegmentedControlSelectionIndicatorLocationNone // No selection indicator
+	  HMSegmentedControlSelectionIndicatorLocationNone // No selection indicator
 } HMSegmentedControlSelectionIndicatorLocation;
 
 typedef enum {
