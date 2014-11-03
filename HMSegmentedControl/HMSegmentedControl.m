@@ -581,7 +581,7 @@
         self.segmentWidth = self.frame.size.width / [self sectionCount];
     }
     
-    if (self.isScrollEnabled) {
+    //if (self.isScrollEnabled) {
         if (self.type == HMSegmentedControlTypeText && self.segmentWidthStyle == HMSegmentedControlSegmentWidthStyleFixed) {
             for (NSString *titleString in self.sectionTitles) {
 #if  __IPHONE_OS_VERSION_MIN_REQUIRED >= 70000
@@ -639,7 +639,7 @@
             }
             self.segmentWidthsArray = [mutableSegmentWidths copy];
         }
-    }
+    //}
     
     if ([self segmentedControlNeedsScrolling]) {
         self.scrollView.scrollEnabled = self.isUserDraggable;
@@ -714,7 +714,7 @@
 #pragma mark - Scrolling
 
 - (BOOL)segmentedControlNeedsScrolling {
-    if ([self totalSegmentedControlWidth] > self.frame.size.width && self.isScrollEnabled) {
+    if ([self totalSegmentedControlWidth] > self.frame.size.width) {
         return YES;
     }
     return NO;

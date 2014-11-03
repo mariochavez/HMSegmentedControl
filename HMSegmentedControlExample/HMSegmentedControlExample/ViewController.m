@@ -81,10 +81,9 @@
     segmentedControl3.tag = 2;
     [self.view addSubview:segmentedControl3];
     
-    
     // Tying up the segmented control to a scroll view
     self.segmentedControl4 = [[HMSegmentedControl alloc] initWithFrame:CGRectMake(0, 240 + yDelta, 320, 50)];
-    self.segmentedControl4.sectionTitles = @[@"Worldwide", @"Local", @"Headlines"];
+    self.segmentedControl4.sectionTitles = @[@"Worldwide", @"Local", @"Headlines", @"Sample"];
     self.segmentedControl4.selectedSegmentIndex = 1;
     self.segmentedControl4.backgroundColor = [UIColor colorWithRed:0.7 green:0.7 blue:0.7 alpha:1];
     self.segmentedControl4.textColor = [UIColor whiteColor];
